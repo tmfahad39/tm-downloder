@@ -20,6 +20,7 @@ import shutil
 import subprocess
 import sys
 import termios
+import textwrap
 import tty
 from pathlib import Path
 
@@ -371,20 +372,25 @@ def video_formats(info: dict) -> list[dict]:
     return sorted(grouped.values(), key=lambda r: (-r["height"], -r["fps"], r["ext"]))
 
 
-def kv(label: str, value) -> None:
-    print(row(soft(f" {label:<8}") + " " + str(value)[:40]))
+def kv(label: str, value, *, tint=None) -> None:
+    prefix = soft(f" {label:<8}") + " "
+    width = max(10, W - 3 - vlen(prefix))
+    chunks = textwrap.wrap(str(value), width) or [""]
+    for i, chunk in enumerate(chunks):
+        left = prefix if i == 0 else " " * vlen(prefix)
+        print(row(left + (tint(chunk) if tint else chunk)))
 
 
 def show_details(info: dict, index: int, total: int) -> None:
     print("\n" + top(pink(f"{index}/{total} · detected")))
-    kv("title", accent((info.get("title") or "?")[:42]))
+    kv("title", info.get("title") or "?", tint=accent)
     kv("channel", info.get("uploader") or info.get("channel") or "?")
-    kv("length", good(nice_time(info.get("duration"))))
+    kv("length", nice_time(info.get("duration")), tint=good)
     kv("views", nice_num(info.get("view_count")))
     kv("source", info.get("extractor_key") or info.get("extractor") or "?")
-    about = " ".join((info.get("description") or "").split())[:42]
+    about = " ".join((info.get("description") or "").split())[:160]
     if about:
-        kv("about", soft(about))
+        kv("about", about, tint=soft)
     print(bottom())
 
     rows = video_formats(info)
@@ -485,7 +491,7 @@ def build_command(cfg: dict, mode: str, urls: list[str],
     if mode == "audio":
         args += ["-f", "ba/b", "-x", "--audio-format", cfg["audio_format"],
                  "--audio-quality", "0"]
-        template = "%(uploader,channel|Unknown)s - %(title).100s.%(ext)s"
+        template = "%(uploader,channel|Unknown)s - %(title)s.%(ext)s"
     else:
         if fmt_override:
             args += ["-f", fmt_override]
@@ -496,7 +502,7 @@ def build_command(cfg: dict, mode: str, urls: list[str],
                 args += ["-f", f"bv*[height<={cap}]+ba/b[height<={cap}]/bv*+ba/b"]
             else:
                 args += ["-f", "bv*+ba/b"]
-        template = "%(title).100s [%(id)s].%(ext)s"
+        template = "%(title)s [%(id)s].%(ext)s"
 
     args += ["-o", template]
     if cfg["single"]:
@@ -598,7 +604,7 @@ def download_flow(cfg: dict, prefer_audio: bool = False,
 def do_download(cfg: dict, prefer_audio: bool = False) -> None:
     if prefer_audio:
         download_flow(cfg, prefer_audio=True, require_range=False,
-                      ask_type=True, ask_for_range=True)
+                      ask_type=False, ask_for_range=False)
     else:
         download_flow(cfg, prefer_audio=False, require_range=False,
                       ask_type=False, ask_for_range=False)

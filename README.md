@@ -99,6 +99,10 @@ python3 tmdownloader.py
 **Option 1 — Download video + sound** fetches the details, asks the quality, and
 downloads the whole video with its audio. No type or range questions.
 
+**Option 2 — Download audio** does the same but extracts audio only (mp3 by
+default). No type or range questions. The full video title is shown in the
+details panel and used in the saved filename.
+
 Menu 6 (**Download a time slice**) is the only flow that asks for a custom range
 such as `0-01:30:00`.
 
