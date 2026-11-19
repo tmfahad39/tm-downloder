@@ -22,6 +22,7 @@ import sys
 import termios
 import textwrap
 import tty
+import unicodedata
 from pathlib import Path
 
 # --------------------------------------------------------------------------- #
@@ -47,7 +48,10 @@ def soft(text):   return paint(text, 245)               # grey
 
 
 def vlen(text: str) -> int:
-    return len(ANSI.sub("", text))
+    """Terminal cell width: ignore ANSI codes, count wide CJK chars as 2."""
+    plain = ANSI.sub("", text)
+    return sum(2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1
+               for ch in plain)
 
 
 def pad(text: str, width: int) -> str:
@@ -171,12 +175,12 @@ def interactive_menu(title: str, items: list[str], icons: list[str],
         out = [top(pink(title))]
         for i, (icon, label) in enumerate(zip(icons, items), 1):
             marker = accent("▸") if i - 1 == selected else soft(" ")
-            content = f"{marker} [{accent(str(i))}]  {icon}  {label}"
+            content = f"{marker} 『{accent(str(i))}』  {icon}  {label}"
             if i - 1 == selected:
                 content = "\033[7m" + content + "\033[0m"
             out.append(row(content))
         marker = accent("▸") if selected == len(items) else soft(" ")
-        exit_row = f"{marker} [{soft('0')}]  ×  {soft(exit_label)}"
+        exit_row = f"{marker} 『{soft('0')}』  ×  {soft(exit_label)}"
         if selected == len(items):
             exit_row = "\033[7m" + exit_row + "\033[0m"
         out.append(row(exit_row))
@@ -215,9 +219,9 @@ def menu(title: str, items: list[str], icons: list[str] | None = None) -> int | 
 
     print("\n" + top(pink(title)))
     for i, (icon, item) in enumerate(zip(icons, items), 1):
-        print(row(f"[{accent(str(i))}]  {icon}  {item}"))
+        print(row(f"『{accent(str(i))}』  {icon}  {item}"))
     exit_label = "quit" if title == "Main menu" else "back"
-    print(row(f"[{soft('0')}]  ×  {soft(exit_label)}"))
+    print(row(f"『{soft('0')}』  ×  {soft(exit_label)}"))
     print(bottom())
     choice = ask("choice", "1" if title == "Main menu" else "0")
     if not choice.isdigit():
@@ -736,8 +740,8 @@ def show_files(cfg: dict) -> None:
         if len(files) > 15:
             print(row(soft(f"… and {len(files) - 15} more")))
     print(bottom())
-    print("\n  " + accent("[1]") + " open folder   " + accent("[2]") +
-          " delete a file   " + soft("[0]") + " back")
+    print("\n  " + accent("『1』") + " open folder   " + accent("『2』") +
+          " delete a file   " + soft("『0』") + " back")
     choice = ask("choice", "0")
     if choice == "1":
         if shutil.which("termux-open"):

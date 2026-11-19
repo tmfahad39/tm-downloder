@@ -18,13 +18,13 @@ Twitch, SoundCloud, direct `.mp4`/`.m3u8` links, and more.
   ● ready   folder ~/Download/VideoDownloads
 
 ╔═ Main menu ══════════════════════════════════════════╗
-║ [1]  ▼  Download video + sound                       ║
-║ [2]  ♪  Download audio                               ║
-║ [3]  ⚙  Settings                                     ║
-║ [4]  ▤  Downloaded files                             ║
-║ [5]  ↻  Update tools                                 ║
-║ [6]  ✂  Download a time slice                        ║
-║ [0]  ×  quit                                         ║
+║ 『1』  ▼  Download video + sound                     ║
+║ 『2』  ♪  Download audio                             ║
+║ 『3』  ⚙  Settings                                   ║
+║ 『4』  ▤  Downloaded files                           ║
+║ 『5』  ↻  Update tools                               ║
+║ 『6』  ✂  Download a time slice                      ║
+║ 『0』  ×  quit                                       ║
 ╚══════════════════════════════════════════════════════╝
   ↑/↓ move   Enter select   Esc quit
 ```
