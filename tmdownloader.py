@@ -334,8 +334,48 @@ def show_details(info: dict, index: int, total: int) -> None:
     print(bottom())
 
 
-def choose_quality(cfg: dict, infos: list[dict], prefer_audio: bool = False):
-    """Return (mode, format_override, effective_config) or None if cancelled."""
+SECTION_RE = re.compile(r"^(?:[\d:.]+)?-(?:[\d:.]+)?$")
+
+
+def ask_download_type(prefer_audio: bool = False) -> str | None:
+    print("\n" + top(pink("download type")))
+    print(row(f"  {accent('v')}  video + audio (mp4)"))
+    print(row(f"  {accent('a')}  audio only"))
+    print(row(f"  {soft('c')}  cancel"))
+    print(bottom())
+    choice = ask("type", "a" if prefer_audio else "v").strip().lower()
+    if choice in ("c", "cancel"):
+        return None
+    if choice in ("a", "audio"):
+        return "audio"
+    return "video"
+
+
+def ask_range(required: bool = False) -> tuple[str | None, bool]:
+    """Return (range_string_or_None, exact_cut)."""
+    print("\n" + top(pink("time range")))
+    print(row(soft(" 0-01:30:00        ") + "first 1 hour 30 min"))
+    print(row(soft(" 00:30:00-01:00:00 ") + "30 min → 1 hour"))
+    print(row(soft(" 01:00:00-         ") + "from 1 hour to end"))
+    if not required:
+        print(row(soft(" (blank)           ") + "whole video"))
+    print(bottom())
+    for _ in range(3):
+        value = ask("range (blank = full)" if not required else "range", "").strip().lstrip("*")
+        if not value:
+            if not required:
+                return None, False
+            print("  " + warn("enter a range, e.g. 0-01:30:00"))
+            continue
+        if SECTION_RE.fullmatch(value) and value != "-":
+            exact = ask("frame-accurate cut (re-encodes, slower)?", "n").lower() in ("y", "yes")
+            return value, exact
+        print("  " + warn("use start-end, e.g. 0-01:30:00"))
+    return None, False
+
+
+def choose_quality(cfg: dict, infos: list[dict]) -> tuple | None:
+    """Return (format_override, effective_config) or None if cancelled."""
     video_audio = {
         str(f.get("format_id") or f.get("id")): f.get("acodec") not in (None, "none")
         for info in infos for f in (info.get("formats") or [])
@@ -348,25 +388,22 @@ def choose_quality(cfg: dict, infos: list[dict], prefer_audio: bool = False):
     print(row(f"  {accent('0')}  = best available (auto)"))
     if heights:
         print(row(f"  {accent(str(heights[0]))}  = highest listed, or any height"))
-    print(row(f"  {good('a')}  = audio only"))
     print(row(f"  {pink('f<id>')}  = exact format id from the table"))
     print(row(f"  {soft('c')}  = cancel"))
     print(bottom())
-    choice = ask("quality", "a" if prefer_audio else "0").strip().lower()
+    choice = ask("quality", "0").strip().lower()
 
     if choice in ("c", "cancel"):
         return None
-    if choice in ("a", "audio"):
-        return "audio", None, cfg
     if choice.startswith("f") and choice[1:] in video_audio:
         fid = choice[1:]
-        return "video", (fid if video_audio[fid] else fid + "+ba"), cfg
+        return (fid if video_audio[fid] else fid + "+ba"), cfg
     if choice.isdigit():
         effective = dict(cfg)
         effective["quality"] = int(choice)
-        return "video", None, effective
+        return None, effective
     print("! unknown choice, using best available")
-    return "video", None, cfg
+    return None, cfg
 
 
 def build_command(cfg: dict, mode: str, urls: list[str],
@@ -407,7 +444,8 @@ def build_command(cfg: dict, mode: str, urls: list[str],
     return args + urls
 
 
-def do_download(cfg: dict, prefer_audio: bool = False) -> None:
+def download_flow(cfg: dict, prefer_audio: bool = False,
+                  require_range: bool = False) -> None:
     urls = collect_urls()
     if not urls:
         return
@@ -420,86 +458,39 @@ def do_download(cfg: dict, prefer_audio: bool = False) -> None:
         for i, info in enumerate(infos, 1):
             show_details(info, i, len(infos))
 
-    picked = choose_quality(cfg, infos, prefer_audio)
-    if picked is None:
+    mode = ask_download_type(prefer_audio)
+    if mode is None:
         print("cancelled")
         return
-    mode, fmt_override, effective_cfg = picked
+    section, exact = ask_range(required=require_range)
+    if require_range and not section:
+        print("cancelled")
+        return
+
+    effective_cfg = dict(cfg)
+    fmt_override = None
+    if mode == "video":
+        picked = choose_quality(cfg, infos)
+        if picked is None:
+            print("cancelled")
+            return
+        fmt_override, effective_cfg = picked
+    else:
+        value = ask("audio format", cfg["audio_format"]).strip().lower()
+        if value:
+            effective_cfg["audio_format"] = value
+
+    flags: list[str] = []
+    if section:
+        flags = ["--download-sections", f"*{section}"]
+        if exact:
+            flags.append("--force-keyframes-at-cuts")
+        if mode == "audio":
+            print("  " + warn("note: audio-only extraction may ignore slices on some sites"))
 
     print("\n" + top(pink("ready to download")))
-    mode_text = "audio → " + effective_cfg["audio_format"] if mode == "audio" else "video + audio (mp4)"
-    print(row(soft(" mode    ") + accent(mode_text)))
-    if mode == "video":
-        detail = fmt_override if fmt_override else (
-            f"{effective_cfg['quality']}p cap" if effective_cfg["quality"] else "best available")
-        print(row(soft(" quality ") + good(detail)))
-    print(row(soft(" save to ") + short_path(effective_cfg["dest"])))
-    print(row(soft(" items   ") + str(len(urls))))
-    print(bottom())
-
-    if ask("Start download?", "y").lower() not in ("y", "yes"):
-        print("cancelled")
-        return
-
-    cmd = build_command(effective_cfg, mode, urls, fmt_override)
-    try:
-        result = subprocess.run(cmd, check=False)
-        print("\n  " + (good("✓ finished") if result.returncode == 0
-                         else bad(f"✗ yt-dlp exited with {result.returncode}")))
-    except KeyboardInterrupt:
-        print("\n! interrupted — partial files can be resumed by running again")
-    except FileNotFoundError:
-        print("! yt-dlp not found — run preflight or 'pip install -U yt-dlp'")
-    ask("Press Enter to continue")
-
-
-SECTION_RE = re.compile(r"^(?:[\d:.]+)?-(?:[\d:.]+)?$")
-
-
-def ask_section() -> str | None:
-    print("\n" + top(pink("time slice")))
-    print(row(soft(" 0-01:00:00        ") + "first hour"))
-    print(row(soft(" 00:30:00-01:00:00 ") + "30 min → 1 hour"))
-    print(row(soft(" 01:00:00-         ") + "from 1 hour to end"))
-    print(row(soft(" -01:00:00         ") + "shorthand for first hour"))
-    print(bottom())
-    for _ in range(3):
-        value = ask("range", "0-01:00:00").strip().lstrip("*")
-        if SECTION_RE.fullmatch(value) and value != "-":
-            return value
-        print("  " + warn("use start-end, e.g. 0-01:00:00"))
-    return None
-
-
-def download_slice(cfg: dict) -> None:
-    urls = collect_urls()
-    if not urls:
-        return
-
-    section = ask_section()
-    if not section:
-        return
-    exact = ask("frame-accurate cut (re-encodes, slower)?", "n").lower() in ("y", "yes")
-
-    print("\n  " + pink("◌") + " fetching metadata (nothing downloaded yet)...")
-    infos = probe_urls(cfg, urls)
-    for i, info in enumerate(infos, 1):
-        show_details(info, i, len(infos))
-
-    picked = choose_quality(cfg, infos)
-    if picked is None:
-        print("cancelled")
-        return
-    mode, fmt_override, effective_cfg = picked
-    if mode == "audio":
-        print("  " + warn("note: audio-only extraction may ignore slices on some sites"))
-
-    flags = ["--download-sections", f"*{section}"]
-    if exact:
-        flags.append("--force-keyframes-at-cuts")
-
-    print("\n" + top(pink("ready to download slice")))
-    print(row(soft(" section  ") + good(section + ("  (exact cut)" if exact else ""))))
+    if section:
+        print(row(soft(" range    ") + good(section + ("  (exact cut)" if exact else ""))))
     mode_text = "audio → " + effective_cfg["audio_format"] if mode == "audio" else "video + audio (mp4)"
     print(row(soft(" mode     ") + accent(mode_text)))
     if mode == "video":
@@ -522,8 +513,16 @@ def download_slice(cfg: dict) -> None:
     except KeyboardInterrupt:
         print("\n! interrupted — partial files can be resumed by running again")
     except FileNotFoundError:
-        print("! yt-dlp not found")
+        print("! yt-dlp not found — run preflight or 'pip install -U yt-dlp'")
     ask("Press Enter to continue")
+
+
+def do_download(cfg: dict, prefer_audio: bool = False) -> None:
+    download_flow(cfg, prefer_audio=prefer_audio, require_range=False)
+
+
+def download_slice(cfg: dict) -> None:
+    download_flow(cfg, prefer_audio=False, require_range=True)
 
 
 def show_files(cfg: dict) -> None:
@@ -642,6 +641,8 @@ def main() -> None:
                 show_files(cfg)
             elif choice == 5:
                 update_tools()
+            elif choice == 6:
+                download_slice(cfg)
             elif choice == 6:
                 download_slice(cfg)
         except SystemExit:

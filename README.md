@@ -92,8 +92,10 @@ python3 tmdownloader.py
 
 ### Downloading only part of a video
 
-Choose **Download a time slice** (menu 6) to grab just a section of a long video,
-e.g. the first hour of a 5-hour stream. Enter a range like:
+Every download first fetches the video's details, then asks whether you want
+**video + audio** or **audio only**, and finally asks for a time range. Leave the
+range blank for the whole video, or enter any custom range. Menu 6
+(**Download a time slice**) is a shortcut that requires a range.
 
 | Range | Meaning |
 | --- | --- |
