@@ -370,7 +370,8 @@ def choose_quality(cfg: dict, infos: list[dict], prefer_audio: bool = False):
 
 
 def build_command(cfg: dict, mode: str, urls: list[str],
-                  fmt_override: str | None = None) -> list[str]:
+                  fmt_override: str | None = None,
+                  extra_flags: list[str] | None = None) -> list[str]:
     args = ["yt-dlp", "--paths", destination(cfg)]
 
     if mode == "audio":
@@ -401,6 +402,8 @@ def build_command(cfg: dict, mode: str, urls: list[str],
 
     if cfg["extra"].strip():
         args += shlex.split(cfg["extra"])
+    if extra_flags:
+        args += extra_flags
     return args + urls
 
 
@@ -447,6 +450,79 @@ def do_download(cfg: dict, prefer_audio: bool = False) -> None:
         print("\n! interrupted — partial files can be resumed by running again")
     except FileNotFoundError:
         print("! yt-dlp not found — run preflight or 'pip install -U yt-dlp'")
+    ask("Press Enter to continue")
+
+
+SECTION_RE = re.compile(r"^(?:[\d:.]+)?-(?:[\d:.]+)?$")
+
+
+def ask_section() -> str | None:
+    print("\n" + top(pink("time slice")))
+    print(row(soft(" 0-01:00:00        ") + "first hour"))
+    print(row(soft(" 00:30:00-01:00:00 ") + "30 min → 1 hour"))
+    print(row(soft(" 01:00:00-         ") + "from 1 hour to end"))
+    print(row(soft(" -01:00:00         ") + "shorthand for first hour"))
+    print(bottom())
+    for _ in range(3):
+        value = ask("range", "0-01:00:00").strip().lstrip("*")
+        if SECTION_RE.fullmatch(value) and value != "-":
+            return value
+        print("  " + warn("use start-end, e.g. 0-01:00:00"))
+    return None
+
+
+def download_slice(cfg: dict) -> None:
+    urls = collect_urls()
+    if not urls:
+        return
+
+    section = ask_section()
+    if not section:
+        return
+    exact = ask("frame-accurate cut (re-encodes, slower)?", "n").lower() in ("y", "yes")
+
+    print("\n  " + pink("◌") + " fetching metadata (nothing downloaded yet)...")
+    infos = probe_urls(cfg, urls)
+    for i, info in enumerate(infos, 1):
+        show_details(info, i, len(infos))
+
+    picked = choose_quality(cfg, infos)
+    if picked is None:
+        print("cancelled")
+        return
+    mode, fmt_override, effective_cfg = picked
+    if mode == "audio":
+        print("  " + warn("note: audio-only extraction may ignore slices on some sites"))
+
+    flags = ["--download-sections", f"*{section}"]
+    if exact:
+        flags.append("--force-keyframes-at-cuts")
+
+    print("\n" + top(pink("ready to download slice")))
+    print(row(soft(" section  ") + good(section + ("  (exact cut)" if exact else ""))))
+    mode_text = "audio → " + effective_cfg["audio_format"] if mode == "audio" else "video + audio (mp4)"
+    print(row(soft(" mode     ") + accent(mode_text)))
+    if mode == "video":
+        detail = fmt_override if fmt_override else (
+            f"{effective_cfg['quality']}p cap" if effective_cfg["quality"] else "best available")
+        print(row(soft(" quality  ") + good(detail)))
+    print(row(soft(" save to  ") + short_path(effective_cfg["dest"])))
+    print(row(soft(" items    ") + str(len(urls))))
+    print(bottom())
+
+    if ask("Start download?", "y").lower() not in ("y", "yes"):
+        print("cancelled")
+        return
+
+    cmd = build_command(effective_cfg, mode, urls, fmt_override, flags)
+    try:
+        result = subprocess.run(cmd, check=False)
+        print("\n  " + (good("✓ finished") if result.returncode == 0
+                         else bad(f"✗ yt-dlp exited with {result.returncode}")))
+    except KeyboardInterrupt:
+        print("\n! interrupted — partial files can be resumed by running again")
+    except FileNotFoundError:
+        print("! yt-dlp not found")
     ask("Press Enter to continue")
 
 
@@ -545,7 +621,8 @@ def main() -> None:
             "Settings",
             "Downloaded files",
             "Update tools",
-        ], icons=[pink("▼"), good("♪"), soft("⚙"), accent("▤"), warn("↻")])
+            "Download a time slice",
+        ], icons=[pink("▼"), good("♪"), soft("⚙"), accent("▤"), warn("↻"), accent("✂")])
         if choice == 0:
             if ask("Quit?", "y").lower() in ("y", "yes"):
                 break
@@ -565,6 +642,8 @@ def main() -> None:
                 show_files(cfg)
             elif choice == 5:
                 update_tools()
+            elif choice == 6:
+                download_slice(cfg)
         except SystemExit:
             raise
 

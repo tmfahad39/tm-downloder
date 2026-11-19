@@ -23,6 +23,7 @@ Twitch, SoundCloud, direct `.mp4`/`.m3u8` links, and more.
 │ [3]  ⚙  Settings                                     │
 │ [4]  ▤  Downloaded files                             │
 │ [5]  ↻  Update tools                                 │
+│ [6]  ✂  Download a time slice                        │
 │ [0]  ×  quit                                         │
 ╰──────────────────────────────────────────────────────╯
 ```
@@ -89,8 +90,26 @@ python3 tmdownloader.py
 - Multiple URLs and playlists are supported. Playlists are previewed up to 20 entries.
 - Ctrl+C is safe: yt-dlp can resume partial files when you run the same link again.
 
+### Downloading only part of a video
+
+Choose **Download a time slice** (menu 6) to grab just a section of a long video,
+e.g. the first hour of a 5-hour stream. Enter a range like:
+
+| Range | Meaning |
+| --- | --- |
+| `0-01:00:00` | first hour |
+| `00:30:00-01:00:00` | from 30 min to 1 hour |
+| `01:00:00-` | from 1 hour to the end |
+| `-01:00:00` | shorthand for the first hour |
+
+You can also opt into a frame-accurate cut (`--force-keyframes-at-cuts`), which
+re-encodes the segment and is slower, or use the plain cut which snaps to the
+nearest keyframe. Only the selected portion is transferred.
+
 The `vdl` shell script in this repo is a lightweight non-interactive wrapper for
 people who prefer one-line commands (`vdl URL`, `vdl -a URL`, `vdl -q 720 URL`).
+For a one-off slice without the menu:
+`vdl -- --download-sections "*0-01:00:00" URL`.
 
 ## Settings
 
