@@ -1,0 +1,83 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# vdl - download video/audio from ~1800 sites (YouTube, TikTok, Instagram,
+#       X/Twitter, Facebook, Reddit, Vimeo, Twitch, SoundCloud, ...)
+# Usage: vdl [options] URL [URL...]
+
+set -uo pipefail
+
+DEST="${VDL_DIR:-$HOME/storage/shared/Download/VideoDownloads}"
+AUDIO=0
+FORMAT="mp3"
+QUALITY=""
+SINGLE=0
+
+usage() {
+  cat <<'EOF'
+vdl - video/audio downloader (yt-dlp wrapper)
+
+  vdl URL...                 best video + audio, merged to .mp4
+  vdl -q 720 URL             cap resolution at 720p
+  vdl -a URL                 audio only -> .mp3
+  vdl -a -f m4a URL          audio only -> .m4a (no re-encode, much faster)
+  vdl -1 URL                 single item even if URL is part of a playlist
+  vdl -d /path URL           save somewhere else
+  vdl -u                     update yt-dlp + ffmpeg
+
+  Default folder: $DEST
+  Any other yt-dlp flag can be passed after `--`, e.g.  vdl -- --cookies cookies.txt URL
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -a|--audio)   AUDIO=1; shift ;;
+    -f|--format)  FORMAT="$2"; shift 2 ;;
+    -q|--quality) QUALITY="$2"; shift 2 ;;
+    -1|--single)  SINGLE=1; shift ;;
+    -d|--dir)     DEST="$2"; shift 2 ;;
+    -u|--update)  pip install --upgrade yt-dlp && pkg upgrade -y ffmpeg; exit 0 ;;
+    -h|--help)    usage; exit 0 ;;
+    --)           shift; EXTRA=("$@"); set -- ;;
+    -*)           echo "vdl: unknown option $1" >&2; usage; exit 1 ;;
+    *)            break ;;
+  esac
+done
+
+if [[ $# -eq 0 ]]; then
+  usage
+  exit 1
+fi
+
+mkdir -p "$DEST" || {
+  echo "vdl: cannot create $DEST" >&2
+  echo "     run 'termux-setup-storage' and allow access, or use -d <dir>" >&2
+  exit 1
+}
+
+args=(--paths "$DEST")
+[[ $SINGLE -eq 1 ]] && args+=(--no-playlist)
+[[ ${EXTRA+x} ]] && args+=("${EXTRA[@]}")
+
+if [[ $AUDIO -eq 1 ]]; then
+  args+=(-f "ba/b" -x --audio-format "$FORMAT" --audio-quality 0
+         -o "%(uploader,channel|Unknown)s - %(title).100s.%(ext)s")
+else
+  if [[ -n "$QUALITY" ]]; then
+    args+=(-f "bv*[height<=${QUALITY}]+ba/b[height<=${QUALITY}]/bv*+ba/b")
+  else
+    args+=(-f "bv*+ba/b")
+  fi
+  args+=(-o "%(title).100s [%(id)s].%(ext)s")
+fi
+
+echo "→ saving to: $DEST"
+yt-dlp "${args[@]}" "$@"
+status=$?
+
+if [[ $status -eq 0 ]]; then
+  echo "✓ done"
+else
+  echo "✗ yt-dlp exited with status $status" >&2
+  [[ $status -eq 2 ]] && echo "  (bad URL / option — check the link)" >&2
+fi
+exit $status

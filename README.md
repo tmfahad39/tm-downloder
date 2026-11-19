@@ -1,0 +1,118 @@
+# TM DOWNLODER — terminal video downloader for Termux
+
+An interactive, colorful terminal interface for [yt-dlp](https://github.com/yt-dlp/yt-dlp).
+Paste a link, see the video's name, channel, length, views and every available
+resolution/size, then pick the quality you want before anything is downloaded.
+
+Works on Termux (Android), Linux and macOS. Supports the 1800+ sites yt-dlp
+supports: YouTube, TikTok, Instagram, X/Twitter, Reddit, Facebook, Vimeo,
+Twitch, SoundCloud, direct `.mp4`/`.m3u8` links, and more.
+
+## Screens
+
+```
+╭──────────────────────────────────────────────────────╮
+│ ▼  TM DOWNLODER  /  downloader                       │
+│ youtube · tiktok · instagram · x · reddit · more     │
+╰──────────────────────────────────────────────────────╯
+  ● ready   folder ~/Download/VideoDownloads
+
+╭─ Main menu ──────────────────────────────────────────╮
+│ [1]  ▼  Download video                               │
+│ [2]  ♪  Download audio                               │
+│ [3]  ⚙  Settings                                     │
+│ [4]  ▤  Downloaded files                             │
+│ [5]  ↻  Update tools                                 │
+│ [0]  ×  quit                                         │
+╰──────────────────────────────────────────────────────╯
+```
+
+After pasting a URL:
+
+```
+╭─ 1/1 · detected ─────────────────────────────────────╮
+│  title    Big Buck Bunny 60fps 4K - Official Blend   │
+│  channel  Blender                                    │
+│  length   10:35                                      │
+│  views    23,560,343                                 │
+│  source   Youtube                                    │
+╰──────────────────────────────────────────────────────╯
+
+╭─ available formats ──────────────────────────────────╮
+│    #  resolution  fps  ext   sound     size  id      │
+│    1  3840x2160    60  mp4   no                  ?  628│
+│    2  3840x2160    60  webm  no             1299MB  315│
+│    5  1920x1080    60  webm  no              161MB  303│
+╰──────────────────────────────────────────────────────╯
+
+╭─ choose quality ─────────────────────────────────────╮
+│  heights  2160p, 1440p, 1080p, 720p, 480p ...       │
+│  0       = best available (auto)                    │
+│  720     = cap at 720p                              │
+│  a       = audio only                               │
+│  f<id>   = exact format id from the table           │
+╰──────────────────────────────────────────────────────╯
+```
+
+## Install
+
+### Termux
+
+```bash
+pkg install -y python ffmpeg git
+pip install -U yt-dlp
+termux-setup-storage          # allow access to shared storage
+
+git clone https://github.com/tmfahad39/tm-downloder.git
+cd tm-downloder
+
+cp vdl_ui.py ~/bin/
+echo 'alias down="python3 ~/bin/vdl_ui.py"' >> ~/.bashrc
+source ~/.bashrc
+
+down
+```
+
+### Linux / macOS
+
+```bash
+pip install -U yt-dlp
+ffmpeg installed via your package manager (apt / brew / dnf)
+python3 vdl_ui.py
+```
+
+## Usage
+
+- Paste one URL per line; press Enter on an empty line to continue.
+- Pick a **height** (`720`, `1080`, …) to cap resolution, `0` for best available,
+  `a` for audio only, `f303` for an exact format id (from the table), or `c` to cancel.
+- Multiple URLs and playlists are supported. Playlists are previewed up to 20 entries.
+- Ctrl+C is safe: yt-dlp can resume partial files when you run the same link again.
+
+The `vdl` shell script in this repo is a lightweight non-interactive wrapper for
+people who prefer one-line commands (`vdl URL`, `vdl -a URL`, `vdl -q 720 URL`).
+
+## Settings
+
+Stored in `~/.config/vdl_ui.json`:
+
+| Key | Meaning |
+| --- | --- |
+| `dest` | download folder (default: `~/storage/shared/Download/VideoDownloads`) |
+| `quality` | saved resolution cap, `0` = best |
+| `audio_format` | `mp3`, `m4a`, `opus`, `wav`, `flac` |
+| `single` | ignore playlist context of a video URL |
+| `cookies` | path to `cookies.txt` for private / age-restricted videos |
+| `extra` | extra yt-dlp flags, e.g. `--sleep-requests 1` |
+
+## Notes
+
+- Colors are disabled automatically when output is piped or `NO_COLOR` is set.
+- `yt-dlp` changes often; if extraction breaks, run **Update tools** (menu 5).
+- For long downloads on Android, use `termux-wake-lock` to prevent doze.
+- Only download content you own or have permission to save. Respect each site's
+  terms of service and local copyright law.
+
+## License
+
+MIT — see [LICENSE](LICENSE).

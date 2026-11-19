@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.config/
+VideoDownloads/
+Downloads/
+*.mp4
+*.mkv
+*.webm
+*.mp3
+*.part
+*.ytdl
+cookies.txt
