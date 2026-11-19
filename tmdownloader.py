@@ -14,10 +14,13 @@ from __future__ import annotations
 import json
 import os
 import re
+import select
 import shlex
 import shutil
 import subprocess
 import sys
+import termios
+import tty
 from pathlib import Path
 
 # --------------------------------------------------------------------------- #
@@ -118,8 +121,76 @@ def ask(prompt: str, default: str = "") -> str:
     return value or default
 
 
+def read_key() -> str:
+    """Read one key (or an arrow-key escape sequence) without waiting for Enter."""
+    fd = sys.stdin.fileno()
+    old = termios.tcgetattr(fd)
+    try:
+        tty.setraw(fd)
+        ch = os.read(fd, 1).decode(errors="ignore")
+        if ch == "\x1b":
+            if select.select([fd], [], [], 0.08)[0]:
+                ch += os.read(fd, 1).decode(errors="ignore")
+                if ch.endswith("[") and select.select([fd], [], [], 0.08)[0]:
+                    ch += os.read(fd, 1).decode(errors="ignore")
+        return ch
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old)
+
+
+def interactive_menu(title: str, items: list[str], icons: list[str],
+                     default: int) -> int:
+    exit_label = "quit" if title == "Main menu" else "back"
+    count = len(items) + 1
+    selected = min(default, count - 1)
+    first = True
+
+    def block() -> list[str]:
+        out = [top(pink(title))]
+        for i, (icon, label) in enumerate(zip(icons, items), 1):
+            marker = accent("▸") if i - 1 == selected else soft(" ")
+            content = f"{marker} [{accent(str(i))}]  {icon}  {label}"
+            if i - 1 == selected:
+                content = "\033[7m" + content + "\033[0m"
+            out.append(row(content))
+        marker = accent("▸") if selected == len(items) else soft(" ")
+        exit_row = f"{marker} [{soft('0')}]  ×  {soft(exit_label)}"
+        if selected == len(items):
+            exit_row = "\033[7m" + exit_row + "\033[0m"
+        out.append(row(exit_row))
+        out.append(bottom())
+        out.append(soft("  ↑/↓ move   Enter select   Esc quit"))
+        return out
+
+    while True:
+        lines = block()
+        if not first:
+            sys.stdout.write(f"\033[{len(lines)}A")
+        for line in lines:
+            sys.stdout.write("\r\033[K" + line + "\n")
+        sys.stdout.flush()
+        first = False
+
+        key = read_key()
+        if key in ("\x1b[A", "k", "K"):
+            selected = (selected - 1) % count
+        elif key in ("\x1b[B", "j", "J"):
+            selected = (selected + 1) % count
+        elif key in ("\r", "\n"):
+            return 0 if selected == len(items) else selected + 1
+        elif key in ("\x03", "\x1b"):
+            return 0
+
+
 def menu(title: str, items: list[str], icons: list[str] | None = None) -> int | None:
     icons = icons or ["◆"] * len(items)
+    if sys.stdin.isatty():
+        try:
+            default = 0 if title == "Main menu" else len(items)
+            return interactive_menu(title, items, icons, default)
+        except (termios.error, OSError, ValueError):
+            pass  # fall through to numbered input
+
     print("\n" + top(pink(title)))
     for i, (icon, item) in enumerate(zip(icons, items), 1):
         print(row(f"[{accent(str(i))}]  {icon}  {item}"))

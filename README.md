@@ -26,7 +26,11 @@ Twitch, SoundCloud, direct `.mp4`/`.m3u8` links, and more.
 │ [6]  ✂  Download a time slice                        │
 │ [0]  ×  quit                                         │
 ╰──────────────────────────────────────────────────────╯
+  ↑/↓ move   Enter select   Esc quit
 ```
+
+Use **↑ / ↓** to move the highlight and **Enter** to select. `j`/`k` also work;
+typing a number still works when input isn't a terminal.
 
 After pasting a URL:
 
