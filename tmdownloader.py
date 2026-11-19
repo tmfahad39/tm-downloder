@@ -3,7 +3,7 @@
 TM DOWNLODER - an interactive download interface for yt-dlp (Termux-friendly).
 
 Run it any time with:
-    python3 ~/bin/vdl_ui.py
+    python3 ~/bin/tmdownloader.py
 
 Everything is standard-library Python. It uses the yt-dlp + ffmpeg install
 already on this device, and keeps its settings in ~/.config/vdl_ui.json.

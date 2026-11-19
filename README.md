@@ -66,8 +66,8 @@ termux-setup-storage          # allow access to shared storage
 git clone https://github.com/tmfahad39/tm-downloder.git
 cd tm-downloder
 
-cp vdl_ui.py ~/bin/
-echo 'alias down="python3 ~/bin/vdl_ui.py"' >> ~/.bashrc
+cp tmdownloader.py ~/bin/
+echo 'alias down="python3 ~/bin/tmdownloader.py"' >> ~/.bashrc
 source ~/.bashrc
 
 down
@@ -78,7 +78,7 @@ down
 ```bash
 pip install -U yt-dlp
 ffmpeg installed via your package manager (apt / brew / dnf)
-python3 vdl_ui.py
+python3 tmdownloader.py
 ```
 
 ## Usage
