@@ -372,6 +372,29 @@ def video_formats(info: dict) -> list[dict]:
     return sorted(grouped.values(), key=lambda r: (-r["height"], -r["fps"], r["ext"]))
 
 
+def audio_formats(info: dict) -> list[dict]:
+    """m4a / mp3 only - one row per bitrate, no WebM/Opus clutter."""
+    grouped: dict[tuple, dict] = {}
+    for f in info.get("formats") or []:
+        if f.get("vcodec") not in (None, "none"):
+            continue
+        ext = f.get("ext") or ""
+        if ext not in ("m4a", "mp3"):
+            continue
+        fid = str(f.get("format_id") or "")
+        if fid.endswith("-drc"):
+            continue
+        kbps = round(f.get("tbr") or f.get("abr") or 0)
+        if kbps <= 0:
+            continue
+        size = f.get("filesize") or f.get("filesize_approx") or 0
+        row = {"id": fid, "ext": ext, "kbps": kbps, "size": size}
+        key = (ext, kbps)
+        if key not in grouped or size > grouped[key]["size"]:
+            grouped[key] = row
+    return sorted(grouped.values(), key=lambda r: (-r["kbps"], r["ext"]))
+
+
 def kv(label: str, value, *, tint=None) -> None:
     prefix = soft(f" {label:<8}") + " "
     width = max(10, W - 3 - vlen(prefix))
@@ -381,7 +404,7 @@ def kv(label: str, value, *, tint=None) -> None:
         print(row(left + (tint(chunk) if tint else chunk)))
 
 
-def show_details(info: dict, index: int, total: int) -> None:
+def show_details(info: dict, index: int, total: int, mode: str = "video") -> None:
     print("\n" + top(pink(f"{index}/{total} · detected")))
     kv("title", info.get("title") or "?", tint=accent)
     kv("channel", info.get("uploader") or info.get("channel") or "?")
@@ -392,6 +415,21 @@ def show_details(info: dict, index: int, total: int) -> None:
     if about:
         kv("about", about, tint=soft)
     print(bottom())
+
+    if mode == "audio":
+        rows = audio_formats(info)
+        if not rows:
+            print("  " + warn("no m4a/mp3 tracks listed - best audio will be used"))
+            return
+        print("\n  " + top(pink("available audio (m4a / mp3)")))
+        print(row(soft(f"  {'#':>2}  {'ext':<5} {'bitrate':>8} {'size':>8}  id")))
+        for i, r in enumerate(rows[:12], 1):
+            size = f"{r['size'] / 1048576:.1f}MB" if r["size"] else "?"
+            line = (f"  {accent(f'{i:>2}')}  {r['ext']:<5} "
+                    f"{good(str(r['kbps']) + 'k'):>13} {size:>8}  {soft(r['id'])}")
+            print(row(line))
+        print(bottom())
+        return
 
     rows = video_formats(info)
     if not rows:
@@ -451,6 +489,37 @@ def ask_range(required: bool = False) -> tuple[str | None, bool]:
     return None, False
 
 
+def choose_audio(infos: list[dict]) -> tuple | None:
+    """Return (format_id_or_None, ext, kbps), or None if cancelled.
+
+    A None format id means "best available" (the default).
+    """
+    grouped: dict[tuple, dict] = {}
+    for info in infos:
+        for r in audio_formats(info):
+            key = (r["ext"], r["kbps"])
+            if key not in grouped or r["size"] > grouped[key]["size"]:
+                grouped[key] = r
+    rows = sorted(grouped.values(), key=lambda r: (-r["kbps"], r["ext"]))
+    if not rows:
+        return None, "", 0
+
+    print("\n" + top(pink("audio quality")))
+    print(row(f"  {accent('0')}  = best available (auto)"))
+    for i, r in enumerate(rows[:12], 1):
+        print(row(f"  {accent(str(i))}  = {good(str(r['kbps']) + 'k'):<7} "
+                  f"{r['ext']}  ({r['id']})"))
+    print(row(f"  {soft('c')}  = cancel"))
+    print(bottom())
+    choice = ask("quality", "0").strip().lower()
+    if choice in ("c", "cancel"):
+        return None
+    if choice.isdigit() and 1 <= int(choice) <= len(rows[:12]):
+        r = rows[int(choice) - 1]
+        return r["id"], r["ext"], r["kbps"]
+    return None, "", 0
+
+
 def choose_quality(cfg: dict, infos: list[dict]) -> tuple | None:
     """Return (format_override, effective_config) or None if cancelled."""
     video_audio = {
@@ -489,7 +558,8 @@ def build_command(cfg: dict, mode: str, urls: list[str],
     args = ["yt-dlp", "--paths", destination(cfg)]
 
     if mode == "audio":
-        args += ["-f", "ba/b", "-x", "--audio-format", cfg["audio_format"],
+        audio_fmt = fmt_override or "ba/b"
+        args += ["-f", audio_fmt, "-x", "--audio-format", cfg["audio_format"],
                  "--audio-quality", "0"]
         template = "%(uploader,channel|Unknown)s - %(title)s.%(ext)s"
     else:
@@ -528,13 +598,16 @@ def download_flow(cfg: dict, prefer_audio: bool = False,
     if not urls:
         return
 
+    # Option 2 knows its mode up front, so show the audio bitrate table.
+    show_audio = prefer_audio and not ask_type
+
     print("\n  " + pink("◌") + " fetching metadata (nothing downloaded yet)...")
     infos = probe_urls(cfg, urls)
     if not infos:
         print("! could not read any details; downloading with defaults instead")
     else:
         for i, info in enumerate(infos, 1):
-            show_details(info, i, len(infos))
+            show_details(info, i, len(infos), mode="audio" if show_audio else "video")
 
     if ask_type:
         mode = ask_download_type(prefer_audio)
@@ -553,6 +626,7 @@ def download_flow(cfg: dict, prefer_audio: bool = False,
 
     effective_cfg = dict(cfg)
     fmt_override = None
+    audio_label = "best available"
     if mode == "video":
         picked = choose_quality(cfg, infos)
         if picked is None:
@@ -560,9 +634,20 @@ def download_flow(cfg: dict, prefer_audio: bool = False,
             return
         fmt_override, effective_cfg = picked
     else:
-        value = ask("audio format", cfg["audio_format"]).strip().lower()
-        if value:
-            effective_cfg["audio_format"] = value
+        if show_audio and infos:
+            picked_audio = choose_audio(infos)
+            if picked_audio is None:
+                print("cancelled")
+                return
+            fid, ext, kbps = picked_audio
+            if fid:
+                fmt_override = fid
+                effective_cfg["audio_format"] = ext
+                audio_label = f"{kbps}k {ext} ({fid})"
+        else:
+            value = ask("audio format", cfg["audio_format"]).strip().lower()
+            if value:
+                effective_cfg["audio_format"] = value
 
     flags: list[str] = []
     if section:
@@ -581,6 +666,8 @@ def download_flow(cfg: dict, prefer_audio: bool = False,
         detail = fmt_override if fmt_override else (
             f"{effective_cfg['quality']}p cap" if effective_cfg["quality"] else "best available")
         print(row(soft(" quality  ") + good(detail)))
+    else:
+        print(row(soft(" quality  ") + good(audio_label)))
     print(row(soft(" save to  ") + short_path(effective_cfg["dest"])))
     print(row(soft(" items    ") + str(len(urls))))
     print(bottom())
