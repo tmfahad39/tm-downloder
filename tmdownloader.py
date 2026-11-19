@@ -54,6 +54,16 @@ def pad(text: str, width: int) -> str:
     return text + " " * max(0, width - vlen(text))
 
 
+def ljust(text: str, width: int) -> str:
+    """Pad on the right using *visible* width (ANSI colours don't count)."""
+    return text + " " * max(0, width - vlen(text))
+
+
+def rjust(text: str, width: int) -> str:
+    """Pad on the left using *visible* width (ANSI colours don't count)."""
+    return " " * max(0, width - vlen(text)) + text
+
+
 def short_path(path) -> str:
     text = str(path).replace(str(Path.home()), "~")
     parts = text.split("/")
@@ -61,17 +71,28 @@ def short_path(path) -> str:
 
 
 def top(title: str = "", width: int = W) -> str:
+    """Top edge. Titles are trimmed by visible width so the border never grows."""
     if not title:
-        return "╭" + "─" * (width - 2) + "╮"
-    return "╭─ " + title + " " + "─" * max(0, width - vlen(title) - 5) + "╮"
+        return "╔" + "═" * (width - 2) + "╗"
+    room = max(0, width - 5)
+    if vlen(title) > room:
+        plain = ANSI.sub("", title)[:room]
+        # Re-apply the caller's colour if the title was a coloured string.
+        match = re.match(r"(\x1b\[[0-9;]*m)+", title)
+        title = (match.group(0) + plain + "\x1b[0m") if match else plain
+    return "╔═ " + title + " " + "═" * max(0, width - vlen(title) - 5) + "╗"
 
 
 def bottom(width: int = W) -> str:
-    return "╰" + "─" * (width - 2) + "╯"
+    return "╚" + "═" * (width - 2) + "╝"
 
 
 def row(content: str, width: int = W) -> str:
-    return "│ " + content + " " * max(0, width - 3 - vlen(content)) + "│"
+    """Content row, clipped/padded by visible width so every edge lines up."""
+    limit = max(0, width - 3)
+    if vlen(content) > limit:
+        content = ANSI.sub("", content)[:limit]
+    return "║ " + ljust(content, limit) + "║"
 
 
 CONFIG_PATH = Path.home() / ".config" / "vdl_ui.json"
@@ -421,12 +442,12 @@ def show_details(info: dict, index: int, total: int, mode: str = "video") -> Non
         if not rows:
             print("  " + warn("no m4a/mp3 tracks listed - best audio will be used"))
             return
-        print("\n  " + top(pink("available audio (m4a / mp3)")))
+        print("\n" + top(pink("available audio (m4a / mp3)")))
         print(row(soft(f"  {'#':>2}  {'ext':<5} {'bitrate':>8} {'size':>8}  id")))
         for i, r in enumerate(rows[:12], 1):
             size = f"{r['size'] / 1048576:.1f}MB" if r["size"] else "?"
-            line = (f"  {accent(f'{i:>2}')}  {r['ext']:<5} "
-                    f"{good(str(r['kbps']) + 'k'):>13} {size:>8}  {soft(r['id'])}")
+            line = (f"  {accent(f'{i:>2}')}  {ljust(r['ext'], 5)} "
+                    f"{rjust(good(str(r['kbps']) + 'k'), 13)} {size:>8}  {soft(r['id'])}")
             print(row(line))
         print(bottom())
         return
@@ -435,14 +456,14 @@ def show_details(info: dict, index: int, total: int, mode: str = "video") -> Non
     if not rows:
         print("  " + warn("no video formats reported"))
         return
-    print("\n  " + top(pink("available formats")))
+    print("\n" + top(pink("available formats")))
     head = soft(f"  {'#':>2}  {'resolution':<11} {'fps':>3}  {'ext':<5} {'sound':<5} {'size':>8}  id")
     print(row(head))
     for i, r in enumerate(rows[:14], 1):
         size = f"{r['size'] / 1048576:.0f}MB" if r["size"] else "?"
         sound = good("yes") if r["audio"] else soft("no")
-        line = (f"  {accent(f'{i:>2}')}  {r['label']:<11} {r['fps']:>3}  "
-                f"{r['ext']:<5} {pad(sound, 12)} {size:>8}  {soft(r['id'])}")
+        line = (f"  {accent(f'{i:>2}')}  {ljust(r['label'], 11)} {r['fps']:>3}  "
+                f"{ljust(r['ext'], 5)} {pad(sound, 5)} {size:>8}  {soft(r['id'])}")
         print(row(line))
     if len(rows) > 14:
         print(row(soft(f"  … {len(rows) - 14} more resolutions available")))
@@ -507,7 +528,7 @@ def choose_audio(infos: list[dict]) -> tuple | None:
     print("\n" + top(pink("audio quality")))
     print(row(f"  {accent('0')}  = best available (auto)"))
     for i, r in enumerate(rows[:12], 1):
-        print(row(f"  {accent(str(i))}  = {good(str(r['kbps']) + 'k'):<7} "
+        print(row(f"  {accent(str(i))}  = {ljust(good(str(r['kbps']) + 'k'), 7)} "
                   f"{r['ext']}  ({r['id']})"))
     print(row(f"  {soft('c')}  = cancel"))
     print(bottom())
@@ -530,7 +551,7 @@ def choose_quality(cfg: dict, infos: list[dict]) -> tuple | None:
     heights = sorted({r["height"] for info in infos for r in video_formats(info)},
                      reverse=True)
     print("\n" + top(pink("choose quality")))
-    print(row(soft(" heights  ") + ", ".join(str(h) + "p" for h in heights[:10])))
+    print(row(soft(" heights  ") + ", ".join(str(h) + "p" for h in heights[:6])))
     print(row(f"  {accent('0')}  = best available (auto)"))
     if heights:
         print(row(f"  {accent(str(heights[0]))}  = highest listed, or any height"))
@@ -818,8 +839,6 @@ def main() -> None:
                 show_files(cfg)
             elif choice == 5:
                 update_tools()
-            elif choice == 6:
-                download_slice(cfg)
             elif choice == 6:
                 download_slice(cfg)
         except SystemExit:

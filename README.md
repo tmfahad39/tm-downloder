@@ -11,21 +11,21 @@ Twitch, SoundCloud, direct `.mp4`/`.m3u8` links, and more.
 ## Screens
 
 ```
-╭──────────────────────────────────────────────────────╮
-│ ▼  TM DOWNLODER  /  downloader                       │
-│ youtube · tiktok · instagram · x · reddit · more     │
-╰──────────────────────────────────────────────────────╯
+╔══════════════════════════════════════════════════════╗
+║ ▼  TM DOWNLODER  /  downloader                       ║
+║ youtube · tiktok · instagram · x · reddit · more     ║
+╚══════════════════════════════════════════════════════╝
   ● ready   folder ~/Download/VideoDownloads
 
-╭─ Main menu ──────────────────────────────────────────╮
-│ [1]  ▼  Download video + sound                       │
-│ [2]  ♪  Download audio                               │
-│ [3]  ⚙  Settings                                     │
-│ [4]  ▤  Downloaded files                             │
-│ [5]  ↻  Update tools                                 │
-│ [6]  ✂  Download a time slice                        │
-│ [0]  ×  quit                                         │
-╰──────────────────────────────────────────────────────╯
+╔═ Main menu ══════════════════════════════════════════╗
+║ [1]  ▼  Download video + sound                       ║
+║ [2]  ♪  Download audio                               ║
+║ [3]  ⚙  Settings                                     ║
+║ [4]  ▤  Downloaded files                             ║
+║ [5]  ↻  Update tools                                 ║
+║ [6]  ✂  Download a time slice                        ║
+║ [0]  ×  quit                                         ║
+╚══════════════════════════════════════════════════════╝
   ↑/↓ move   Enter select   Esc quit
 ```
 
@@ -35,28 +35,35 @@ typing a number still works when input isn't a terminal.
 After pasting a URL:
 
 ```
-╭─ 1/1 · detected ─────────────────────────────────────╮
-│  title    Big Buck Bunny 60fps 4K - Official Blend   │
-│  channel  Blender                                    │
-│  length   10:35                                      │
-│  views    23,560,343                                 │
-│  source   Youtube                                    │
-╰──────────────────────────────────────────────────────╯
+╔═ 1/1 · detected ═════════════════════════════════════╗
+║  title    Big Buck Bunny 60fps 4K - Official Blender ║
+║           Foundation Short Film                      ║
+║  channel  Blender                                    ║
+║  length   10:35                                      ║
+║  views    23,560,343                                 ║
+║  source   Youtube                                    ║
+╚══════════════════════════════════════════════════════╝
 
-╭─ available formats ──────────────────────────────────╮
-│    #  resolution  fps  ext   sound     size  id      │
-│    1  3840x2160    60  mp4   no                  ?  628│
-│    2  3840x2160    60  webm  no             1299MB  315│
-│    5  1920x1080    60  webm  no              161MB  303│
-╰──────────────────────────────────────────────────────╯
+╔═ available formats ══════════════════════════════════╗
+║    #  resolution  fps  ext   sound     size  id      ║
+║    1  3840x2160    60  mp4   no           ?  628     ║
+║    2  3840x2160    60  webm  no      1299MB  315     ║
+║    3  1920x1080    60  webm  no       161MB  303     ║
+╚══════════════════════════════════════════════════════╝
 
-╭─ choose quality ─────────────────────────────────────╮
-│  heights  2160p, 1440p, 1080p, 720p, 480p ...       │
-│  0       = best available (auto)                    │
-│  720     = cap at 720p                              │
-│  a       = audio only                               │
-│  f<id>   = exact format id from the table           │
-╰──────────────────────────────────────────────────────╯
+╔═ choose quality ═════════════════════════════════════╗
+║  heights  2160p, 1440p, 1080p, 720p, 480p, 360p      ║
+║ 0       = best available (auto)                      ║
+║ 720     = cap at 720p                                ║
+║ f<id>   = exact format id from the table             ║
+║ c       = cancel                                     ║
+╚══════════════════════════════════════════════════════╝
+
+╔═ available audio (m4a / mp3) ════════════════════════╗
+║    #  ext    bitrate     size  id                    ║
+║    1  m4a            129k  285.7MB  140              ║
+║    2  m4a             49k  107.6MB  139              ║
+╚══════════════════════════════════════════════════════╝
 ```
 
 ## Install
@@ -90,7 +97,8 @@ python3 tmdownloader.py
 
 - Paste one URL per line; press Enter on an empty line to continue.
 - Pick a **height** (`720`, `1080`, …) to cap resolution, `0` for best available,
-  `a` for audio only, `f303` for an exact format id (from the table), or `c` to cancel.
+  `f303` for an exact format id (from the table), or `c` to cancel. Use menu 2
+  for audio only.
 - Multiple URLs and playlists are supported. Playlists are previewed up to 20 entries.
 - Ctrl+C is safe: yt-dlp can resume partial files when you run the same link again.
 
