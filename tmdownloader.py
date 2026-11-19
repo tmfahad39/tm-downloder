@@ -445,7 +445,8 @@ def build_command(cfg: dict, mode: str, urls: list[str],
 
 
 def download_flow(cfg: dict, prefer_audio: bool = False,
-                  require_range: bool = False) -> None:
+                  require_range: bool = False,
+                  ask_type: bool = True, ask_for_range: bool = True) -> None:
     urls = collect_urls()
     if not urls:
         return
@@ -458,14 +459,20 @@ def download_flow(cfg: dict, prefer_audio: bool = False,
         for i, info in enumerate(infos, 1):
             show_details(info, i, len(infos))
 
-    mode = ask_download_type(prefer_audio)
-    if mode is None:
-        print("cancelled")
-        return
-    section, exact = ask_range(required=require_range)
-    if require_range and not section:
-        print("cancelled")
-        return
+    if ask_type:
+        mode = ask_download_type(prefer_audio)
+        if mode is None:
+            print("cancelled")
+            return
+    else:
+        mode = "audio" if prefer_audio else "video"
+
+    section, exact = None, False
+    if ask_for_range or require_range:
+        section, exact = ask_range(required=require_range)
+        if require_range and not section:
+            print("cancelled")
+            return
 
     effective_cfg = dict(cfg)
     fmt_override = None
@@ -518,11 +525,17 @@ def download_flow(cfg: dict, prefer_audio: bool = False,
 
 
 def do_download(cfg: dict, prefer_audio: bool = False) -> None:
-    download_flow(cfg, prefer_audio=prefer_audio, require_range=False)
+    if prefer_audio:
+        download_flow(cfg, prefer_audio=True, require_range=False,
+                      ask_type=True, ask_for_range=True)
+    else:
+        download_flow(cfg, prefer_audio=False, require_range=False,
+                      ask_type=False, ask_for_range=False)
 
 
 def download_slice(cfg: dict) -> None:
-    download_flow(cfg, prefer_audio=False, require_range=True)
+    download_flow(cfg, prefer_audio=False, require_range=True,
+                  ask_type=True, ask_for_range=True)
 
 
 def show_files(cfg: dict) -> None:
@@ -615,7 +628,7 @@ def main() -> None:
         clear()
         banner(cfg)
         choice = menu("Main menu", [
-            "Download video",
+            "Download video + sound",
             "Download audio",
             "Settings",
             "Downloaded files",

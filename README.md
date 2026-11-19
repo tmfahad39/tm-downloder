@@ -18,7 +18,7 @@ Twitch, SoundCloud, direct `.mp4`/`.m3u8` links, and more.
   ● ready   folder ~/Download/VideoDownloads
 
 ╭─ Main menu ──────────────────────────────────────────╮
-│ [1]  ▼  Download video                               │
+│ [1]  ▼  Download video + sound                       │
 │ [2]  ♪  Download audio                               │
 │ [3]  ⚙  Settings                                     │
 │ [4]  ▤  Downloaded files                             │
@@ -92,10 +92,11 @@ python3 tmdownloader.py
 
 ### Downloading only part of a video
 
-Every download first fetches the video's details, then asks whether you want
-**video + audio** or **audio only**, and finally asks for a time range. Leave the
-range blank for the whole video, or enter any custom range. Menu 6
-(**Download a time slice**) is a shortcut that requires a range.
+**Option 1 — Download video + sound** fetches the details, asks the quality, and
+downloads the whole video with its audio. No type or range questions.
+
+Menu 6 (**Download a time slice**) is the only flow that asks for a custom range
+such as `0-01:30:00`.
 
 | Range | Meaning |
 | --- | --- |
