@@ -126,7 +126,7 @@ def menu(title: str, items: list[str], icons: list[str] | None = None) -> int | 
     exit_label = "quit" if title == "Main menu" else "back"
     print(row(f"[{soft('0')}]  ×  {soft(exit_label)}"))
     print(bottom())
-    choice = ask("choice", "0")
+    choice = ask("choice", "1" if title == "Main menu" else "0")
     if not choice.isdigit():
         return None
     n = int(choice)
